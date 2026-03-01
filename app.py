@@ -1,8 +1,13 @@
-# app.py - FIXED VERSION
+# app.py - UPDATED VERSION
+# Change from old chat2.py: imports get_chain() instead of qa_chain directly.
+# This is required because chat2.py now uses lazy initialization —
+# qa_chain starts as None and is only built on the first request.
+
 from flask import Flask, request, jsonify, render_template
 import logging
-from chat2 import qa_chain
 import traceback
+import os
+from chat2 import get_chain   # ← updated: was "from chat2 import qa_chain"
 
 # Configure logging
 logging.basicConfig(
@@ -12,6 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
 
 @app.route('/')
 def home():
@@ -25,73 +31,77 @@ def ask():
     try:
         # Get query from form data (jQuery sends as form, not JSON)
         query = request.form.get('messageText', '').strip()
-        
-        # Validate query
+
+        # Validate: empty query
         if not query:
             logger.warning("Empty query received")
             return jsonify({
                 'error': 'Empty query',
                 'answer': 'Please enter a question about agriculture.'
             }), 400
-        
+
+        # Validate: query too long
         if len(query) > 500:
             logger.warning(f"Query too long: {len(query)} characters")
             return jsonify({
                 'error': 'Query too long',
                 'answer': 'Please keep your question under 500 characters.'
             }), 400
-        
-        # Check if chain is available
-        if qa_chain is None:
-            logger.error("QA chain not initialized")
+
+        # ── Get chain via lazy loader ──────────────────────────────────────────
+        # get_chain() builds the chain on the very first call, then reuses it.
+        # If setup fails (bad API key, no documents, etc.) it raises an exception
+        # which we catch here and return a clean error to the user.
+        try:
+            chain = get_chain()
+        except Exception as chain_err:
+            logger.error(f"Failed to initialize QA chain: {chain_err}")
+            logger.error(traceback.format_exc())
             return jsonify({
                 'error': 'Service unavailable',
-                'answer': 'The chatbot service is currently unavailable. Please try again later.'
+                'answer': 'The chatbot service failed to initialize. Please check your setup and try again.'
             }), 503
-        
+
         logger.info(f"Processing query: {query[:50]}...")
-        
-        # ✓ FIXED: Use invoke() instead of calling directly
-        response = qa_chain.invoke({"query": query})
-        
-        # Extract answer from response
+
+        # Invoke the chain
+        response = chain.invoke({"query": query})
+
+        # Extract answer — try different possible keys LangChain may return
         if isinstance(response, dict):
-            # Try different possible keys
-            answer = response.get('result', 
-                     response.get('answer', 
-                     response.get('output', 
+            answer = response.get('result',
+                     response.get('answer',
+                     response.get('output',
                      str(response))))
         else:
             answer = str(response)
-        
-        # Clean up the answer
+
         answer = answer.strip()
-        
+
         if not answer:
             answer = "I apologize, but I couldn't generate a response. Could you rephrase your question?"
-        
+
         logger.info(f"Generated answer: {answer[:100]}...")
-        
-        # ✓ Return format that matches your JavaScript expectations
+
         return jsonify({
             'answer': answer,
             'status': 'success'
         }), 200
-        
+
     except ValueError as e:
         logger.error(f"ValueError: {e}")
         return jsonify({
             'error': 'Invalid input',
             'answer': 'There was an error with your input. Please try again.'
         }), 400
-        
+
     except ConnectionError as e:
         logger.error(f"ConnectionError: {e}")
         return jsonify({
             'error': 'Connection error',
             'answer': 'Unable to connect to the AI service. Please check your internet connection.'
         }), 503
-        
+
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         logger.error(traceback.format_exc())
@@ -103,13 +113,25 @@ def ask():
 
 @app.route('/health', methods=['GET'])
 def health():
-    """Health check endpoint"""
-    chain_status = "healthy" if qa_chain is not None else "unhealthy"
+    """
+    Health check endpoint.
+    Tries to get the chain — if it succeeds the service is healthy.
+    Returns 200 if healthy, 503 if not.
+    """
+    try:
+        chain = get_chain()
+        status = "healthy" if chain is not None else "unhealthy"
+        http_code = 200 if chain is not None else 503
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        status = "unhealthy"
+        http_code = 503
+
     return jsonify({
-        'status': chain_status,
+        'status': status,
         'service': 'AgriGenius',
         'version': '1.0'
-    }), 200 if qa_chain else 503
+    }), http_code
 
 
 @app.errorhandler(404)
@@ -124,12 +146,15 @@ def server_error(e):
 
 
 if __name__ == '__main__':
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+
     print("\n" + "="*50)
-    print("🌾 AgriGenius - AI Agriculture Chatbot")
+    print("🌾 AgriBot - AI Agriculture Chatbot")
     print("="*50)
     print("Starting Flask server...")
     print("Navigate to: http://127.0.0.1:5000")
+    print("Note: First request will take 2-5 mins to build the AI chain.")
     print("Press CTRL+C to quit")
     print("="*50 + "\n")
-    
-    app.run(debug=True, host='127.0.0.1', port=5000)
+
+    app.run(debug=debug_mode, use_reloader=False, host='127.0.0.1', port=5000)

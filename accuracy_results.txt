@@ -1,0 +1,57 @@
+AgriGenius Accuracy Test Results
+============================================================
+
+Overall Accuracy: 80.0%
+
+Individual Test Results:
+------------------------------------------------------------
+1. [FAIL] Seasonal Crops
+   Question: What are the main crops grown during monsoon season in India?
+   Confidence: 0.0%
+   Response Time: 0.98s
+
+2. [PASS] Pest Control
+   Question: How can I control pests in rice farming?
+   Confidence: 20.0%
+   Response Time: 1.01s
+
+3. [PASS] Fertilizers
+   Question: What is the best fertilizer for wheat crops?
+   Confidence: 20.0%
+   Response Time: 0.68s
+
+4. [PASS] Plant Disease
+   Question: What causes yellowing of leaves in plants?
+   Confidence: 80.0%
+   Response Time: 0.74s
+
+5. [PASS] Irrigation
+   Question: How much water does a rice crop need?
+   Confidence: 20.0%
+   Response Time: 0.99s
+
+6. [PASS] Farming Practices
+   Question: What is crop rotation and why is it important?
+   Confidence: 100.0%
+   Response Time: 1.48s
+
+7. [PASS] Soil Management
+   Question: How do I prepare soil for planting?
+   Confidence: 40.0%
+   Response Time: 0.82s
+
+8. [PASS] Irrigation Technology
+   Question: What is drip irrigation?
+   Confidence: 20.0%
+   Response Time: 1.37s
+
+9. [FAIL] Dry Farming
+   Question: Which crops are good for dry land farming?
+   Confidence: 0.0%
+   Response Time: 1.74s
+
+10. [PASS] Organic Farming
+   Question: How to increase soil fertility naturally?
+   Confidence: 100.0%
+   Response Time: 3.84s
+

@@ -1,0 +1,44 @@
+/* static/css/main.css — Global Styles & CSS Variables */
+
+:root {
+    /* Blue palette (auth pages) */
+    --blue-deep:   #0A1628;
+    --blue-dark:   #0F2952;
+    --blue-mid:    #1A4A8A;
+    --blue-bright: #2563EB;
+    --blue-light:  #60A5FA;
+    --blue-pale:   #EFF6FF;
+    --blue-glow:   rgba(37, 99, 235, 0.14);
+
+    /* Green palette (chat page) */
+    --green-deep:   #1B4332;
+    --green-mid:    #2D6A4F;
+    --green-bright: #40916C;
+    --green-light:  #74C69D;
+    --green-pale:   #E8F5EE;
+
+    /* Neutral */
+    --white:       #FFFFFF;
+    --bg-light:    #F8FAFC;
+    --text-dark:   #0F172A;
+    --text-muted:  #64748B;
+    --border:      #CBD5E1;
+    --gold:        #F59E0B;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Outfit', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Flash messages */
+.alert {
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    margin-bottom: 16px;
+}
+.alert-error   { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+.alert-success { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }

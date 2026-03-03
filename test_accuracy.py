@@ -1,7 +1,7 @@
 # test_accuracy.py - Simple Accuracy Testing for AgriGenius
 # ===========================================================
 
-from chat2 import qa_chain
+from chat2_old import qa_chain
 import time
 
 # Test questions with expected answer keywords

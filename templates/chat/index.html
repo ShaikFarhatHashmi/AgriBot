@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}AgriBot — Chat{% endblock %}
+{% block body_class %}chat-page{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+
+    <!-- Header -->
+    <div class="chat-header">
+        <div class="header-left">
+            <div class="logo-circle">
+                <img src="{{ url_for('static', filename='images/logo.png') }}"
+                     alt="AgriBot" onerror="this.parentElement.innerHTML='🌾'">
+            </div>
+            <div class="header-info">
+                <h1>AgriBot</h1>
+                <div class="online-badge">
+                    <div class="online-dot"></div>
+                    Online · Ready to help
+                </div>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="header-btn" title="Search chat">
+                <i class="fas fa-search"></i>
+            </button>
+            <div class="user-menu">
+                <button class="header-btn user-btn" title="User menu">
+                    <i class="fas fa-user"></i>
+                    <span class="user-name">{{ user.first_name or user.email.split('@')[0] }}</span>
+                </button>
+                <div class="user-dropdown">
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="user-details">
+                            <div class="user-full-name">{{ user.first_name }} {{ user.last_name }}</div>
+                            <div class="user-email">{{ user.email }}</div>
+                            {% if user.state %}
+                            <div class="user-state">📍 {{ user.state }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <a href="{{ url_for('auth.logout') }}" class="dropdown-item logout-item">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Sign Out
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages" id="chatPanel"></div>
+
+    <!-- Input -->
+    <div class="chat-input">
+        <form id="chatbot-form">
+            <input type="text" id="messageText" name="messageText"
+                   placeholder="Ask about crops, fertilizers, diseases...">
+            <button id="btn-voice" type="button" title="Voice input">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button id="btn-send" type="submit" title="Send message">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </form>
+    </div>
+
+    <!-- Footer -->
+    <div class="chat-footer">
+        <button id="btn-clear">
+            <i class="fas fa-trash-alt"></i> Clear Chat
+        </button>
+        <div class="voice-reading">
+            <input type="checkbox" id="voiceReadingCheckbox">
+            <label for="voiceReadingCheckbox">Voice reading</label>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

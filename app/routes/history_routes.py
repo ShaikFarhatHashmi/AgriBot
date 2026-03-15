@@ -9,6 +9,7 @@ from app.models.chat_history import (
     get_conversations,
     get_messages,
     get_detections,
+    get_qr_scans,
     delete_conversation,
     rename_conversation
 )
@@ -51,6 +52,17 @@ def detections(conv_id):
     """
     results = get_detections(conv_id)
     return jsonify({"detections": results})
+
+
+@history_bp.route("/history/qr_scans/<conv_id>", methods=["GET"])
+@login_required
+def qr_scans(conv_id):
+    """
+    GET /history/qr_scans/<conv_id>
+    Returns all QR scan results for a conversation.
+    """
+    results = get_qr_scans(conv_id)
+    return jsonify({"qr_scans": results})
 
 
 @history_bp.route("/history/delete/<conv_id>", methods=["DELETE"])

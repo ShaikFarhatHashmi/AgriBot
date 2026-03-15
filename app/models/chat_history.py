@@ -61,6 +61,20 @@ def init_db():
             FOREIGN KEY (conversation_id)
                 REFERENCES conversations(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS qr_scan_results (
+            id              TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            qr_data         TEXT NOT NULL,
+            product_info    TEXT,
+            confidence      REAL NOT NULL,
+            format          TEXT,
+            chat_response   TEXT,
+            lang            TEXT DEFAULT 'en',
+            created_at      TEXT NOT NULL,
+            FOREIGN KEY (conversation_id)
+                REFERENCES conversations(id) ON DELETE CASCADE
+        );
     """)
     conn.commit()
     conn.close()
@@ -112,12 +126,15 @@ def delete_conversation(conv_id, user_email):
     Verifies ownership via user_email before deleting.
     """
     conn = get_db()
-    # Delete child rows first (messages + detection results)
+    # Delete child rows first (messages + detection results + qr scans)
     conn.execute(
         "DELETE FROM messages WHERE conversation_id = ?", (conv_id,)
     )
     conn.execute(
         "DELETE FROM detection_results WHERE conversation_id = ?", (conv_id,)
+    )
+    conn.execute(
+        "DELETE FROM qr_scan_results WHERE conversation_id = ?", (conv_id,)
     )
     # Delete the conversation itself — only if it belongs to this user
     conn.execute(
@@ -224,3 +241,66 @@ def get_detections(conversation_id):
     """, (conversation_id,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ── QR Code scan history ───────────────────────────────────────
+
+def save_qr_scan(conversation_id, scan_result, chat_response, lang="en"):
+    """
+    Save a QR code scan result to history.
+    Called from qr_controller after successful scan.
+    """
+    import json
+    
+    qr_id = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+    
+    # Convert product_info to JSON string for storage
+    product_info_json = json.dumps(scan_result["product_info"]) if scan_result["product_info"] else None
+    
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO qr_scan_results VALUES (?,?,?,?,?,?,?,?,?)",
+        (
+            qr_id,
+            conversation_id,
+            scan_result["qr_data"],
+            product_info_json,
+            scan_result["confidence"],
+            scan_result["format"],
+            chat_response,
+            lang,
+            now
+        )
+    )
+    conn.execute(
+        "UPDATE conversations SET updated_at = ? WHERE id = ?",
+        (now, conversation_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_qr_scans(conversation_id):
+    """Get all QR scan results for a conversation."""
+    import json
+    
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT qr_data, product_info, confidence, format,
+               chat_response, lang, created_at
+        FROM   qr_scan_results
+        WHERE  conversation_id = ?
+        ORDER  BY created_at ASC
+    """, (conversation_id,)).fetchall()
+    conn.close()
+    
+    results = []
+    for r in rows:
+        result = dict(r)
+        # Parse product_info back from JSON
+        if result["product_info"]:
+            result["product_info"] = json.loads(result["product_info"])
+        results.append(result)
+    
+    return results

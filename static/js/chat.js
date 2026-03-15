@@ -68,7 +68,10 @@ $(function () {
         $.ajax({
             type: "POST",
             url: "/ask",
-            data: { messageText: message },
+            data: {
+                messageText: message,
+                lang: $("#langSelect").val() || "en"
+            },
             success: function (response) {
                 removeTypingIndicator();
                 const answer = response.error ? "Error: " + response.error : response.answer;
@@ -264,7 +267,16 @@ $(function () {
 
         const btn         = $("#btn-voice");
         const recognition = new webkitSpeechRecognition();
-        recognition.lang            = "en-IN";
+
+        // Map language selector value to BCP-47 language tag for speech recognition
+        const langMap = {
+            "en": "en-IN", "hi": "hi-IN", "te": "te-IN",
+            "ta": "ta-IN", "kn": "kn-IN", "ml": "ml-IN",
+            "mr": "mr-IN", "bn": "bn-IN", "gu": "gu-IN",
+            "pa": "pa-IN"
+        };
+        const selectedLang = $("#langSelect").val() || "en";
+        recognition.lang            = langMap[selectedLang] || "en-IN";
         recognition.interimResults  = false;
         recognition.maxAlternatives = 1;
 

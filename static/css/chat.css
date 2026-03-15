@@ -256,7 +256,8 @@ body.chat-page::-webkit-scrollbar-thumb:hover { background: rgba(46,125,50,0.5);
 .chat-footer {
     padding: 10px 16px; background: white;
     border-top: 1px solid #e4f0ea;
-    display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-shrink: 0; gap: 8px;
 }
 #btn-clear {
     background: none; color: #e05555;
@@ -276,6 +277,24 @@ body.chat-page::-webkit-scrollbar-thumb:hover { background: rgba(46,125,50,0.5);
     accent-color: var(--green-bright); width: 16px; height: 16px; cursor: pointer;
 }
 .voice-reading label { cursor: pointer; user-select: none; }
+
+/* ── LANGUAGE SELECTOR ───────────────────────────────────────── */
+.lang-selector {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text-muted);
+    padding: 4px 8px; background: #f8faf9;
+    border-radius: 6px; border: 1px solid #e4f0ea;
+}
+.lang-selector i {
+    color: var(--green-bright); font-size: 13px; flex-shrink: 0;
+}
+.lang-selector select {
+    border: none; background: transparent;
+    font-family: 'Outfit', sans-serif; font-size: 13px;
+    color: var(--text-dark); cursor: pointer; outline: none;
+    max-width: 80px;
+}
+.lang-selector select:focus { outline: none; }
 
 /* ── DISEASE DETECTION PANEL ─────────────────────────────────── */
 .detect-scroll {

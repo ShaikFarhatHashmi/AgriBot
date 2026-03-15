@@ -133,6 +133,7 @@ $(function () {
 
         const formData = new FormData();
         formData.append('image', file);   // matches request.files["image"] in controller
+        formData.append('lang', $('#langSelect').val() || 'en');  // language for translation
 
         $.ajax({
             type: 'POST',

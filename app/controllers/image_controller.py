@@ -9,9 +9,10 @@ PURPOSE: Handles plant disease image upload, CNN prediction,
 import os
 import logging
 import traceback
-from flask import jsonify, current_app
+from flask import jsonify, current_app, request
 from app.services.disease_predictor import predict_disease, build_rag_query
 from app.services.qa_service import QAService
+from app.services.translator import translate_from_english
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +39,23 @@ class ImageController:
         """
         POST /image/predict
         Expects : multipart/form-data with field name 'image'
+                  and optional field 'lang' (default: 'en')
         Returns : JSON with disease name, confidence, treatment info
+                  translated to the user's selected language
 
         Flow:
           1. Validate uploaded file
           2. Run CNN prediction → disease name + confidence
           3. Build RAG query from disease name
           4. Fetch treatment info from ChromaDB via QAService
-          5. Return combined response
+          5. Translate RAG answer to user's language
+          6. Return combined response
         """
+
+        # ── Get language preference from request ──────────────
+        # disease name stays in English for accuracy
+        # only the RAG treatment answer is translated
+        lang = request.form.get("lang", "en")
 
         # ── STEP 1: Check image field exists ─────────────────
         if "image" not in files:
@@ -93,6 +102,8 @@ class ImageController:
             }), 400
 
         # ── STEP 5: Run CNN prediction ────────────────────────
+        # Disease name is always kept in English for accuracy
+        # Translation is only applied to the RAG answer
         try:
             result = predict_disease(image_file)
             logger.info(
@@ -107,31 +118,33 @@ class ImageController:
             }), 500
 
         # ── STEP 6: Build RAG query from CNN output ───────────
-        # e.g. "What are the symptoms, causes and treatment for Tomato — Late blight?"
+        # RAG query is always English — ChromaDB data is in English
         rag_query = build_rag_query(result)
         logger.info(f"RAG query: {rag_query}")
 
         # ── STEP 7: Fetch treatment info from QAService ───────
-        # Uses same service.ask() pattern as ChatController
         try:
             service    = _get_service()
             rag_answer = service.ask(rag_query)
             logger.info(f"RAG answer received: {rag_answer[:80]}...")
         except Exception as e:
             logger.error(f"RAG service failed: {e}\n{traceback.format_exc()}")
-            # RAG failure must not hide the CNN result from user
             rag_answer = (
                 f"Detected: {result['display_name']}. "
                 f"RAG service unavailable — please consult an agricultural expert."
             )
 
-        # ── STEP 8: Build and return final response ───────────
+        # ── STEP 8: Translate RAG answer → user's language ────
+        final_answer = translate_from_english(rag_answer, lang)
+        logger.info(f"Answer translated to lang={lang}")
+
+        # ── STEP 9: Build and return final response ───────────
         response = {
             "success":      True,
-            "disease":      result["display_name"],  # "Tomato — Late blight"
+            "disease":      result["display_name"],  # always English — disease name
             "confidence":   result["confidence"],    # 94.26
             "reliable":     result["reliable"],      # True / False
-            "rag_answer":   rag_answer,              # treatment info from ChromaDB
+            "rag_answer":   final_answer,            # translated treatment info
             "warning":      None
         }
 
@@ -153,7 +166,6 @@ class ImageController:
         """
         GET /image/health
         Checks if CNN model and QAService are both ready.
-        Matches same pattern as ChatController.handle_health().
         """
         try:
             service = _get_service()

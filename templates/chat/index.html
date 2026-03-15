@@ -56,37 +56,143 @@
         </div>
     </div>
 
-    <!-- Messages -->
-    <div class="chat-messages" id="chatPanel"></div>
-
-    <!-- Input -->
-    <div class="chat-input">
-        <form id="chatbot-form">
-            <input type="text" id="messageText" name="messageText"
-                   placeholder="Ask about crops, fertilizers, diseases...">
-            <button id="btn-voice" type="button" title="Voice input">
-                <i class="fas fa-microphone"></i>
-            </button>
-            <button id="btn-send" type="submit" title="Send message">
-                <i class="fas fa-paper-plane"></i>
-            </button>
-        </form>
+    <!-- ── MODE TABS ─────────────────────────────────────────── -->
+    <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-chat" data-tab="chat">
+            <i class="fas fa-comment-dots"></i>
+            Chat
+        </button>
+        <button class="mode-tab" id="tab-image" data-tab="image">
+            <i class="fas fa-leaf"></i>
+            Disease Detection
+            <span class="tab-badge">AI</span>
+        </button>
     </div>
 
-    <!-- Footer -->
-    <div class="chat-footer">
-        <button id="btn-clear">
-            <i class="fas fa-trash-alt"></i> Clear Chat
-        </button>
-        <div class="voice-reading">
-            <input type="checkbox" id="voiceReadingCheckbox">
-            <label for="voiceReadingCheckbox">Voice reading</label>
+    <!-- ── CHAT PANEL ─────────────────────────────────────────── -->
+    <div class="tab-panel" id="panel-chat">
+        <div class="chat-messages" id="chatPanel"></div>
+
+        <!-- Input -->
+        <div class="chat-input">
+            <form id="chatbot-form">
+                <input type="text" id="messageText" name="messageText"
+                       placeholder="Ask about crops, fertilizers, diseases...">
+                <button id="btn-voice" type="button" title="Voice input">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button id="btn-send" type="submit" title="Send message">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+
+        <!-- Footer -->
+        <div class="chat-footer">
+            <button id="btn-clear">
+                <i class="fas fa-trash-alt"></i> Clear Chat
+            </button>
+            <div class="voice-reading">
+                <input type="checkbox" id="voiceReadingCheckbox">
+                <label for="voiceReadingCheckbox">Voice reading</label>
+            </div>
         </div>
     </div>
 
-</div>
+    <!-- ── IMAGE / DISEASE DETECTION PANEL ───────────────────── -->
+    <div class="tab-panel" id="panel-image" style="display:none">
+
+        <div class="detect-scroll">
+            <div class="detect-intro">
+                <div class="detect-icon-wrap">
+                    <i class="fas fa-microscope"></i>
+                </div>
+                <p class="detect-title">Plant Disease Detection</p>
+                <p class="detect-sub">Upload a clear photo of the affected leaf — our AI will identify the disease and suggest treatments.</p>
+            </div>
+
+            <!-- Upload zone -->
+            <div class="upload-zone" id="uploadZone">
+                <input type="file" id="imageInput" accept=".jpg,.jpeg,.png,.webp" style="display:none">
+
+                <div id="uploadPlaceholder" class="upload-placeholder">
+                    <div class="upload-svg">
+                        <svg width="44" height="44" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+                            <rect x="3" y="3" width="18" height="18" rx="3"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                    </div>
+                    <p class="upload-main">Click to upload or drag &amp; drop</p>
+                    <p class="upload-note">JPG · PNG · WEBP · max 5 MB</p>
+                </div>
+
+                <div id="uploadPreview" class="upload-preview" style="display:none">
+                    <img id="previewImg" src="" alt="Preview">
+                    <button class="remove-btn" id="removeImg" title="Remove image">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="preview-name" id="previewName"></div>
+                </div>
+            </div>
+
+            <!-- Analyse button -->
+            <button class="analyse-btn" id="analyseBtn" disabled>
+                <i class="fas fa-search"></i>
+                Analyse Plant
+            </button>
+
+            <!-- Result card -->
+            <div class="result-wrap" id="resultWrap" style="display:none">
+
+                <!-- Loading -->
+                <div class="result-loading" id="resultLoading" style="display:none">
+                    <div class="result-spinner"></div>
+                    <p>Analysing image &amp; fetching treatment info…</p>
+                </div>
+
+                <!-- Success -->
+                <div class="result-success" id="resultSuccess" style="display:none">
+                    <div class="result-top">
+                        <div class="result-badge-row">
+                            <span class="result-label">Disease Detected</span>
+                            <span class="conf-badge" id="confBadge"></span>
+                        </div>
+                        <h4 class="disease-name" id="diseaseName"></h4>
+                        <div class="warn-box" id="warnBox" style="display:none">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span id="warnText"></span>
+                        </div>
+                    </div>
+                    <div class="result-divider"></div>
+                    <div class="result-rag">
+                        <div class="rag-label">
+                            <i class="fas fa-book-open"></i> Treatment &amp; Advice
+                        </div>
+                        <div class="rag-body" id="ragBody"></div>
+                    </div>
+                    <!-- Ask follow-up shortcut -->
+                    <button class="followup-btn" id="followupBtn">
+                        <i class="fas fa-comment-dots"></i>
+                        Ask a follow-up in Chat
+                    </button>
+                </div>
+
+                <!-- Error -->
+                <div class="result-error" id="resultError" style="display:none">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p id="errorMsg"></p>
+                </div>
+
+            </div>
+        </div><!-- /detect-scroll -->
+    </div><!-- /panel-image -->
+
+</div><!-- /chat-container -->
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+<script src="{{ url_for('static', filename='js/detect.js') }}"></script>
 {% endblock %}

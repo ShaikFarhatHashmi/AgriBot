@@ -45,3 +45,13 @@ class AppConfig:
 
     # Validation
     MAX_QUERY_LENGTH = 500
+
+
+    # ── CNN Plant Disease Detection ──────────────────────────────────────────
+    BASE_DIR              = os.path.dirname(os.path.abspath(__file__))
+    CNN_MODEL_PATH        = os.path.join(BASE_DIR, "ml_models", "plant_disease_model.keras")
+    CLASS_MAPPING_PATH    = os.path.join(BASE_DIR, "ml_models", "class_mapping.json")
+    CNN_IMG_SIZE          = (224, 224)   # ← confirm this matches your Kaggle training size
+    CNN_CONFIDENCE_MIN    = 40.0         # below this % → warn user result may be unreliable
+    ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+    MAX_IMAGE_SIZE_MB     = 5            # reject uploads larger than this

@@ -133,7 +133,8 @@ $(function () {
 
         const formData = new FormData();
         formData.append('image', file);   // matches request.files["image"] in controller
-        formData.append('lang', $('#langSelect').val() || 'en');  // language for translation
+        formData.append('lang', $('#langSelect').val() || 'en');
+        formData.append('conv_id', (typeof currentConvId !== 'undefined' ? currentConvId : '') || '');
 
         $.ajax({
             type: 'POST',
@@ -144,6 +145,11 @@ $(function () {
             success: function (response) {
                 if (response.success) {
                     showSuccess(response);
+                    // Refresh sidebar to show detection in history
+                    if (response.conv_id && typeof loadSidebar === 'function') {
+                        if (typeof currentConvId !== 'undefined') currentConvId = response.conv_id;
+                        loadSidebar();
+                    }
                 } else {
                     showError(response.error || 'Prediction failed. Please try again.');
                 }

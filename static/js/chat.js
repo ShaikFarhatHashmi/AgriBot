@@ -1,27 +1,20 @@
 /**
  * static/js/chat.js — Chat Interface Logic
- *
- * Responsibilities:
- *   - Send messages to /ask via AJAX
- *   - Render bot responses with markdown formatting
- *   - Typing indicator, timestamps
- *   - Voice input (speech-to-text) and voice reading (text-to-speech)
- *   - Voice synthesis debugging and better error handling
+ * Includes: messaging, markdown, voice, multilingual, chat history sidebar
  */
 
 $(function () {
 
-    // ── Speech synthesis setup ─────────────────────────────────────────────
+    // ── Speech synthesis ───────────────────────────────────────
     const synth = window.speechSynthesis;
     const msg   = new SpeechSynthesisUtterance();
-    msg.rate  = 1;
-    msg.pitch = 1;
-    msg.voice = null; // Will be set when voices are loaded
+    msg.rate = 1; msg.pitch = 1; msg.voice = null;
 
-    // ── State ──────────────────────────────────────────────────────────────
-    let isProcessing = false;
+    // ── State ──────────────────────────────────────────────────
+    let isProcessing  = false;
+    let currentConvId = null;
 
-    // ── Welcome message ────────────────────────────────────────────────────
+    // ── Welcome message ────────────────────────────────────────
     const WELCOME_MSG =
         "🌱🌾 Welcome to AgriBot! I'm your AI assistant for Indian farming and agriculture.\n\n" +
         "You can ask me about:\n" +
@@ -32,55 +25,58 @@ $(function () {
         "- Weather-based farming tips\n\n" +
         "How can I help you today?";
 
-    setTimeout(() => appendBotMessage(WELCOME_MSG), 500);
+    setTimeout(function () { appendBotMessage(WELCOME_MSG); }, 500);
+    loadSidebar();
 
-    // ── Event listeners ────────────────────────────────────────────────────
+    // ── Event bindings ─────────────────────────────────────────
     $("#btn-send").on("click", function (e) { e.preventDefault(); sendMessage(); });
-
     $("#messageText").on("keypress", function (e) {
         if (e.which === 13) { e.preventDefault(); sendMessage(); }
     });
-
     $("#btn-clear").on("click", function (e) {
         e.preventDefault();
         $(".chat-messages").empty();
         appendBotMessage(WELCOME_MSG);
     });
-
     $("#btn-voice").on("click", handleVoiceInput);
-
     $("#voiceReadingCheckbox").on("change", function () {
         if (!$(this).is(":checked")) synth.cancel();
     });
+    $("#btn-new-chat").on("click", function () {
+        currentConvId = null;
+        $(".chat-messages").empty();
+        appendBotMessage(WELCOME_MSG);
+        $(".history-item").removeClass("active");
+    });
 
-    // ── Core: send message ─────────────────────────────────────────────────
+    // ── Send message ───────────────────────────────────────────
     function sendMessage() {
         const message = $("#messageText").val().trim();
         if (!message || isProcessing) return;
 
         isProcessing = true;
         disableInput();
-
         appendUserMessage(message);
         $("#messageText").val("");
         showTypingIndicator();
 
         $.ajax({
             type: "POST",
-            url: "/ask",
+            url:  "/ask",
             data: {
                 messageText: message,
-                lang: $("#langSelect").val() || "en"
+                lang:        $("#langSelect").val() || "en",
+                conv_id:     currentConvId || ""
             },
             success: function (response) {
                 removeTypingIndicator();
                 const answer = response.error ? "Error: " + response.error : response.answer;
                 appendBotMessage(answer);
-
-                if ($("#voiceReadingCheckbox").is(":checked")) {
-                    speakResponse(answer);
+                if (response.conv_id) {
+                    currentConvId = response.conv_id;
+                    loadSidebar();
                 }
-
+                if ($("#voiceReadingCheckbox").is(":checked")) speakResponse(answer);
                 isProcessing = false;
                 enableInput();
             },
@@ -93,232 +89,293 @@ $(function () {
         });
     }
 
-    // ── Message renderers ──────────────────────────────────────────────────
-
+    // ── Message renderers ──────────────────────────────────────
     function appendUserMessage(text) {
-        const time = getTime();
-        const el = $(`
-            <div class="message-container user-container">
-                <span class="timestamp">${time}</span>
-                <div class="message user-message"></div>
-                <div class="avatar"><img src="/static/images/user.png" alt="You"
-                     onerror="this.parentElement.innerHTML='👤'"></div>
-            </div>
-        `);
+        const el = $(
+            '<div class="message-container user-container">' +
+            '<span class="timestamp">' + getTime() + '</span>' +
+            '<div class="message user-message"></div>' +
+            '<div class="avatar"><img src="/static/images/user.png" alt="You" onerror="this.parentElement.innerHTML=\'👤\'"></div>' +
+            '</div>'
+        );
         el.find(".user-message").text(text);
         $(".chat-messages").append(el);
         scrollToBottom();
     }
 
     function appendBotMessage(text) {
-        const time = getTime();
-        const el = $(`
-            <div class="message-container bot-container">
-                <div class="avatar"><img src="/static/images/robo.png" alt="AgriBot"
-                     onerror="this.parentElement.innerHTML='🌾'"></div>
-                <div class="message bot-message"></div>
-                <span class="timestamp">${time}</span>
-            </div>
-        `);
+        const el = $(
+            '<div class="message-container bot-container">' +
+            '<div class="avatar"><img src="/static/images/robo.png" alt="AgriBot" onerror="this.parentElement.innerHTML=\'🌾\'"></div>' +
+            '<div class="message bot-message"></div>' +
+            '<span class="timestamp">' + getTime() + '</span>' +
+            '</div>'
+        );
         $(".chat-messages").append(el);
         typewriterRender(text, el.find(".bot-message"));
     }
 
-    /**
-     * Typewriter effect that renders markdown as it types.
-     * Markdown supported: **bold**, *italic*, - bullet lists, numbered lists
-     */
-    function typewriterRender(text, element, speed = 12) {
+    // Instant renderers for loading history (no typewriter)
+    function appendUserMessageInstant(text) {
+        const el = $(
+            '<div class="message-container user-container">' +
+            '<div class="message user-message"></div>' +
+            '<div class="avatar"><img src="/static/images/user.png" alt="You" onerror="this.parentElement.innerHTML=\'👤\'"></div>' +
+            '</div>'
+        );
+        el.find(".user-message").text(text);
+        $(".chat-messages").append(el);
+    }
+
+    function appendBotMessageInstant(text) {
+        const el = $(
+            '<div class="message-container bot-container">' +
+            '<div class="avatar"><img src="/static/images/robo.png" alt="AgriBot" onerror="this.parentElement.innerHTML=\'🌾\'"></div>' +
+            '<div class="message bot-message"></div>' +
+            '</div>'
+        );
+        el.find(".bot-message").html(renderMarkdown(text));
+        $(".chat-messages").append(el);
+    }
+
+    function typewriterRender(text, element, speed) {
+        speed = speed || 12;
         let i = 0;
         element.html("");
-
-        const interval = setInterval(() => {
+        const interval = setInterval(function () {
             if (i < text.length) {
                 i++;
                 element.html(renderMarkdown(text.substring(0, i)));
                 scrollToBottom();
             } else {
                 clearInterval(interval);
-                element.html(renderMarkdown(text));   // final clean render
+                element.html(renderMarkdown(text));
             }
         }, speed);
     }
 
-    /**
-     * Convert plain text with markdown to HTML.
-     * Handles: **bold**, *italic*, - bullets, numbered lists, newlines.
-     */
     function renderMarkdown(text) {
-        // Inline: bold and italic
         text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
         text = text.replace(/\*(.*?)\*/g, "<em>$1</em>");
-
-        const lines  = text.split("\n");
-        let html     = "";
-        let inUl     = false;
-        let inOl     = false;
-
-        lines.forEach(line => {
-            const trimmed = line.trim();
-
-            if (!trimmed) {
+        const lines = text.split("\n");
+        let html = "", inUl = false, inOl = false;
+        lines.forEach(function (line) {
+            const t = line.trim();
+            if (!t) {
                 if (inUl) { html += "</ul>"; inUl = false; }
                 if (inOl) { html += "</ol>"; inOl = false; }
                 return;
             }
-
-            // Unordered bullet: "- text" or "• text"
-            if (/^[-•]\s/.test(trimmed)) {
+            if (/^[-•]\s/.test(t)) {
                 if (inOl) { html += "</ol>"; inOl = false; }
                 if (!inUl) { html += "<ul>"; inUl = true; }
-                html += `<li>${trimmed.replace(/^[-•]\s/, "")}</li>`;
-
-            // Ordered list: "1. text"
-            } else if (/^\d+\.\s/.test(trimmed)) {
+                html += "<li>" + t.replace(/^[-•]\s/, "") + "</li>";
+            } else if (/^\d+\.\s/.test(t)) {
                 if (inUl) { html += "</ul>"; inUl = false; }
                 if (!inOl) { html += "<ol>"; inOl = true; }
-                html += `<li>${trimmed.replace(/^\d+\.\s/, "")}</li>`;
-
+                html += "<li>" + t.replace(/^\d+\.\s/, "") + "</li>";
             } else {
                 if (inUl) { html += "</ul>"; inUl = false; }
                 if (inOl) { html += "</ol>"; inOl = false; }
-                html += `<p>${trimmed}</p>`;
+                html += "<p>" + t + "</p>";
             }
         });
-
         if (inUl) html += "</ul>";
         if (inOl) html += "</ol>";
         return html;
     }
 
-    // ── Typing indicator ───────────────────────────────────────────────────
+    // ── Typing indicator ───────────────────────────────────────
     function showTypingIndicator() {
-        const el = $(`
-            <div class="message-container bot-container" id="typing-row">
-                <div class="avatar"><img src="/static/images/robo.png" alt="Bot"
-                     onerror="this.parentElement.innerHTML='🌾'"></div>
-                <div class="typing-indicator"><span></span><span></span><span></span></div>
-            </div>
-        `);
+        const el = $(
+            '<div class="message-container bot-container" id="typing-row">' +
+            '<div class="avatar"><img src="/static/images/robo.png" alt="Bot" onerror="this.parentElement.innerHTML=\'🌾\'"></div>' +
+            '<div class="typing-indicator"><span></span><span></span><span></span></div>' +
+            '</div>'
+        );
         $(".chat-messages").append(el);
         scrollToBottom();
     }
-
     function removeTypingIndicator() { $("#typing-row").remove(); }
 
-    // ── Voice output ────────────────────────────────────────────────────────
+    // ── Voice output ───────────────────────────────────────────
     function speakResponse(text) {
-        if (!('speechSynthesis' in window)) {
-            console.log("Speech synthesis not supported");
-            return;
-        }
-
-        // Cancel any ongoing speech
+        if (!("speechSynthesis" in window)) return;
         synth.cancel();
-
-        // Clean up text (remove markdown)
-        const cleanText = text.replace(/\*\*(.*?)\*\*/g, '$1')
-                              .replace(/\*(.*?)\*/g, '$1')
-                              .replace(/[-•]\s/g, '')
-                              .replace(/\d+\.\s/g, '')
-                              .replace(/\n+/g, ' ');
-
-        msg.text = cleanText;
-        msg.rate = 0.9; // Slightly slower for better comprehension
-        msg.pitch = 1;
-        msg.volume = 1;
-
-        // Try to set a female voice (often preferred for assistants)
-        const voices = synth.getVoices();
-        const femaleVoice = voices.find(voice => 
-            voice.name.includes('Female') || 
-            voice.name.includes('Samantha') ||
-            voice.name.includes('Karen') ||
-            voice.lang.includes('en-IN') ||
-            voice.lang.includes('en-GB')
-        );
-        
-        if (femaleVoice) {
-            msg.voice = femaleVoice;
-        }
-
+        const clean = text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
+                          .replace(/[-•]\s/g, "").replace(/\d+\.\s/g, "").replace(/\n+/g, " ");
+        msg.text = clean; msg.rate = 0.9; msg.pitch = 1; msg.volume = 1;
+        const v = synth.getVoices().find(function (x) {
+            return x.name.includes("Female") || x.name.includes("Samantha") ||
+                   x.name.includes("Karen")  || x.lang.includes("en-IN") || x.lang.includes("en-GB");
+        });
+        if (v) msg.voice = v;
         synth.speak(msg);
     }
-
-    // Load voices when they're ready
-    function loadVoices() {
-        if (synth.getVoices().length > 0) {
-            console.log("Voices loaded:", synth.getVoices().length);
-        }
-    }
-
-    // Voices load asynchronously, so we need to handle both cases
     if (synth.onvoiceschanged !== undefined) {
-        synth.onvoiceschanged = loadVoices;
-    } else {
-        // Fallback for older browsers
-        setTimeout(loadVoices, 100);
+        synth.onvoiceschanged = function () { console.log("Voices:", synth.getVoices().length); };
     }
 
-    // ── Voice input ────────────────────────────────────────────────────────
+    // ── Voice input ────────────────────────────────────────────
     function handleVoiceInput(e) {
         e.preventDefault();
         if (!("webkitSpeechRecognition" in window) || isProcessing) return;
-
-        const btn         = $("#btn-voice");
-        const recognition = new webkitSpeechRecognition();
-
-        // Map language selector value to BCP-47 language tag for speech recognition
-        const langMap = {
-            "en": "en-IN", "hi": "hi-IN", "te": "te-IN",
-            "ta": "ta-IN", "kn": "kn-IN", "ml": "ml-IN",
-            "mr": "mr-IN", "bn": "bn-IN", "gu": "gu-IN",
-            "pa": "pa-IN"
-        };
-        const selectedLang = $("#langSelect").val() || "en";
-        recognition.lang            = langMap[selectedLang] || "en-IN";
-        recognition.interimResults  = false;
-        recognition.maxAlternatives = 1;
-
+        const btn = $("#btn-voice");
+        const rec = new webkitSpeechRecognition();
+        const langMap = { "en":"en-IN","hi":"hi-IN","te":"te-IN","ta":"ta-IN",
+                          "kn":"kn-IN","ml":"ml-IN","mr":"mr-IN","bn":"bn-IN","gu":"gu-IN","pa":"pa-IN" };
+        rec.lang = langMap[$("#langSelect").val() || "en"] || "en-IN";
+        rec.interimResults = false; rec.maxAlternatives = 1;
         btn.addClass("listening");
-
-        recognition.onresult = function (event) {
+        rec.onresult = function (event) {
             btn.removeClass("listening");
-            const speech = event.results[0][0].transcript;
-            $("#messageText").val(speech);
-            console.log("Voice input: " + speech);
+            $("#messageText").val(event.results[0][0].transcript);
             sendMessage();
         };
-
-        recognition.onerror = function (event) {
+        rec.onerror = function (event) {
             btn.removeClass("listening");
-            console.error("Speech recognition error:", event.error);
             alert("Voice input error: " + event.error);
         };
-
-        recognition.onend = function () { btn.removeClass("listening"); };
-
-        recognition.start();
+        rec.onend = function () { btn.removeClass("listening"); };
+        rec.start();
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────
-    function disableInput() {
-        $("#messageText, #btn-send, #btn-voice").prop("disabled", true);
+    // ══════════════════════════════════════════════════════════
+    //  CHAT HISTORY SIDEBAR
+    // ══════════════════════════════════════════════════════════
+
+    function loadSidebar() {
+        $.get("/history/conversations", function (data) {
+            var $list = $("#historyList").empty();
+
+            if (!data.conversations || data.conversations.length === 0) {
+                $list.html(
+                    '<div class="no-history">' +
+                    '<i class="fas fa-seedling"></i>' +
+                    '<p>No conversations yet.<br>Start chatting to see history!</p>' +
+                    '</div>'
+                );
+                return;
+            }
+
+            // Group conversations by date
+            var groups = {}, order = [];
+            data.conversations.forEach(function (conv) {
+                var grp = getDateGroup(conv.updated_at);
+                if (!groups[grp]) { groups[grp] = []; order.push(grp); }
+                groups[grp].push(conv);
+            });
+
+            order.forEach(function (grp) {
+                $list.append('<div class="history-group-label">' + grp + '</div>');
+                groups[grp].forEach(function (conv) {
+                    var isActive    = conv.id === currentConvId ? " active" : "";
+                    var isDetection = conv.title.indexOf("Disease scan:") === 0;
+                    var icon        = isDetection ? "fas fa-leaf" : "fas fa-comment-alt";
+                    var iconClass   = isDetection ? "history-item-icon detect-icon" : "history-item-icon";
+                    var timeStr     = conv.updated_at ? conv.updated_at.substring(11, 16) : "";
+
+                    var $item = $(
+                        '<div class="history-item' + isActive + '" data-id="' + conv.id + '">' +
+                        '<div class="' + iconClass + '"><i class="' + icon + '"></i></div>' +
+                        '<div class="history-item-text">' +
+                        '<span class="history-title">' + escapeHtml(conv.title) + '</span>' +
+                        '<span class="history-date">' + timeStr + '</span>' +
+                        '</div>' +
+                        '<button class="history-delete" data-id="' + conv.id + '" title="Delete">' +
+                        '<i class="fas fa-trash-alt"></i>' +
+                        '</button>' +
+                        '</div>'
+                    );
+                    $list.append($item);
+                });
+            });
+        }).fail(function () {
+            console.warn("Could not load chat history.");
+        });
     }
 
-    function enableInput() {
+    // Click a conversation → load its messages
+    $(document).on("click", ".history-item", function (e) {
+        if ($(e.target).closest(".history-delete").length) return;
+        var convId = $(this).data("id");
+        if (convId === currentConvId) return;
+
+        currentConvId = convId;
+        $(".history-item").removeClass("active");
+        $(this).addClass("active");
+
+        // Show spinner while loading
+        $(".chat-messages").html(
+            '<div class="history-loading">' +
+            '<div class="result-spinner"></div><p>Loading conversation…</p>' +
+            '</div>'
+        );
+
+        $.get("/history/messages/" + convId, function (data) {
+            $(".chat-messages").empty();
+            if (!data.messages || data.messages.length === 0) {
+                appendBotMessage("This conversation has no messages.");
+                return;
+            }
+            data.messages.forEach(function (m) {
+                if (m.role === "user") appendUserMessageInstant(m.content);
+                else                   appendBotMessageInstant(m.content);
+            });
+            scrollToBottom();
+        }).fail(function () {
+            $(".chat-messages").empty();
+            appendBotMessage("Could not load conversation. Please try again.");
+        });
+    });
+
+    // Delete conversation
+    $(document).on("click", ".history-delete", function (e) {
+        e.stopPropagation();
+        var convId = $(this).data("id");
+        if (!confirm("Delete this conversation?")) return;
+        $.ajax({
+            type: "DELETE",
+            url:  "/history/delete/" + convId,
+            success: function () {
+                if (currentConvId === convId) {
+                    currentConvId = null;
+                    $(".chat-messages").empty();
+                    appendBotMessage(WELCOME_MSG);
+                }
+                loadSidebar();
+            },
+            error: function () { alert("Could not delete."); }
+        });
+    });
+
+    // ── Date grouping ──────────────────────────────────────────
+    function getDateGroup(isoString) {
+        if (!isoString) return "Older";
+        var d    = new Date(isoString);
+        var now  = new Date();
+        var diff = Math.floor((now - d) / 86400000);
+        if (diff === 0) return "Today";
+        if (diff === 1) return "Yesterday";
+        if (diff < 7)   return "This Week";
+        if (diff < 30)  return "This Month";
+        return "Older";
+    }
+
+    function escapeHtml(text) { return $("<span>").text(text).html(); }
+
+    // ── Core helpers ───────────────────────────────────────────
+    function disableInput() { $("#messageText, #btn-send, #btn-voice").prop("disabled", true); }
+    function enableInput()  {
         $("#messageText, #btn-send, #btn-voice").prop("disabled", false);
         $("#messageText").focus();
     }
-
     function scrollToBottom() {
-        const el = $(".chat-messages")[0];
+        var el = $(".chat-messages")[0];
         if (el) el.scrollTop = el.scrollHeight;
     }
-
     function getTime() {
-        return new Date().toLocaleTimeString("en-IN", {
-            hour: "2-digit", minute: "2-digit"
-        });
+        return new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
     }
+
 });

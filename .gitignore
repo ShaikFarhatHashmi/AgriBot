@@ -21,4 +21,4 @@ chroma_db/
 
 # OS files
 .DS_Store
-Thumbs.db
+Thumbs.dbchroma_db_temp/

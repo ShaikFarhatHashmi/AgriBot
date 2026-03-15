@@ -3,7 +3,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, jsonify
 
-
 def create_app():
     app = Flask(
         __name__,
@@ -18,9 +17,11 @@ def create_app():
 
     from .routes.chat_routes import chat_bp
     from .routes.auth_routes import auth_bp
+    from .routes.image_routes import image_bp 
 
     app.register_blueprint(chat_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
+    app.register_blueprint(image_bp, url_prefix="/image")
 
     @app.errorhandler(404)
     def not_found(e):

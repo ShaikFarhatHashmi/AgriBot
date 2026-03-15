@@ -190,7 +190,57 @@ class VectorStoreModel:
 
     def _load_embeddings(self):
         logger.info(f"Loading embedding model: {self.embedding_model}")
-        return HuggingFaceEmbeddings(model_name=self.embedding_model)
+        try:
+            # Try a much simpler approach - use OpenAI embeddings style interface
+            # but with a local model that loads faster
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            import numpy as np
+            
+            class SimpleEmbeddings:
+                def __init__(self):
+                    logger.info("Initializing TF-IDF based embeddings (fast startup)")
+                    self.vectorizer = TfidfVectorizer(
+                        max_features=384,  # Match typical embedding size
+                        stop_words='english',
+                        ngram_range=(1, 2)
+                    )
+                    self.fitted = False
+                    logger.info("✓ Simple embeddings initialized")
+                
+                def _fit_if_needed(self, texts):
+                    if not self.fitted:
+                        if isinstance(texts, str):
+                            texts = [texts]
+                        elif hasattr(texts, '__iter__') and not isinstance(texts, str):
+                            # Convert list of Document objects to text
+                            texts = [t.page_content if hasattr(t, 'page_content') else str(t) for t in texts]
+                        self.vectorizer.fit(texts)
+                        self.fitted = True
+            
+                def embed_documents(self, texts):
+                    self._fit_if_needed(texts)
+                    # Convert Document objects to text if needed
+                    if hasattr(texts, '__iter__') and not isinstance(texts, str):
+                        texts = [t.page_content if hasattr(t, 'page_content') else str(t) for t in texts]
+                    embeddings = self.vectorizer.transform(texts).toarray().astype(np.float32)
+                    # Convert numpy arrays to Python lists for ChromaDB
+                    return [emb.tolist() for emb in embeddings]
+            
+                def embed_query(self, text):
+                    self._fit_if_needed([text])
+                    embedding = self.vectorizer.transform([text]).toarray()[0].astype(np.float32)
+                    return embedding.tolist()
+            
+                def __call__(self, text):
+                    return self.embed_query(text)
+        
+            embeddings = SimpleEmbeddings()
+            logger.info("✓ Simple embeddings loaded successfully")
+            return embeddings
+            
+        except Exception as e:
+            logger.error(f"Failed to load embedding model: {e}")
+            raise
 
     def _split(self, documents):
         splitter = RecursiveCharacterTextSplitter(

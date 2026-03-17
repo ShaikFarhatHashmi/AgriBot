@@ -13,6 +13,7 @@ $(function () {
     // ── State ──────────────────────────────────────────────────
     let isScanning = false;
     let currentConvId = null;
+    let currentQrFile = null; // Store current QR file
     
     // ── DOM Elements ─────────────────────────────────────────────
     const $qrUploadSection = $("#qrUploadSection");
@@ -102,21 +103,51 @@ $(function () {
     function handleQrFile(file) {
         console.log("Handling QR file:", file.name);
         
-        // Validate file
-        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/bmp', 'image/tiff', 'image/webp'];
+        // More permissive file validation for clear images
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/bmp', 'image/tiff', 'image/webp', 'image/gif'];
         if (!validTypes.includes(file.type)) {
-            alert("Please upload a valid image file (JPG, PNG, BMP, TIFF, WEBP)");
+            alert("Please upload a valid image file (JPG, PNG, BMP, TIFF, WEBP, GIF)");
             return;
         }
         
-        if (file.size > 10 * 1024 * 1024) { // 10MB
-            alert("File too large. Maximum size: 10MB");
+        // Increased file size limit for clear images (15MB)
+        const maxSize = 15 * 1024 * 1024; // 15MB
+        if (file.size > maxSize) {
+            alert("File size must be less than 15MB for clear QR code images");
             return;
         }
         
-        console.log("File validation passed");
+        // Check minimum dimensions for QR codes
+        if (file.type.startsWith('image/')) {
+            const img = new Image();
+            img.onload = function() {
+                if (img.width < 50 || img.height < 50) {
+                    alert("Image too small for QR code detection (minimum 50x50 pixels)");
+                    return;
+                }
+                // If dimensions are ok, proceed with upload
+                proceedWithQrUpload(file);
+            };
+            img.onerror = function() {
+                alert("Invalid image file");
+            };
+            img.src = URL.createObjectURL(file);
+        } else {
+            proceedWithQrUpload(file);
+        }
+    }
+    
+    function proceedWithQrUpload(file) {
+        // Store the file reference
+        currentQrFile = file;
         
-        // Show preview
+        // Reset previous state (but don't clear file input)
+        $qrUploadPlaceholder.hide();
+        $qrUploadPreview.show();
+        $qrPreviewImg.attr('src', '');
+        $qrPreviewName.text('Loading...');
+        
+        // Read and display file
         const reader = new FileReader();
         reader.onload = function (e) {
             console.log("File reader loaded, showing preview");
@@ -131,6 +162,7 @@ $(function () {
     }
     
     function resetQrUpload() {
+        currentQrFile = null; // Clear stored file reference
         $qrInput.val("");
         $qrPreviewImg.attr("src", "");
         $qrPreviewName.text("");
@@ -143,10 +175,11 @@ $(function () {
     // ── Scan QR Code (Frontend Only) ───────────────────────────────
     $scanQrBtn.on("click", function () {
         console.log("Scan QR button clicked");
-        const fileInput = $qrInput[0];
-        console.log("File input has files:", fileInput.files.length);
-        if (fileInput.files.length > 0) {
-            simulateQrScan(fileInput.files[0]);
+        
+        // Use the stored file reference instead of file input
+        if (currentQrFile) {
+            console.log("Using stored QR file:", currentQrFile.name);
+            simulateQrScan(currentQrFile);
         } else {
             console.log("No files to scan");
             alert("Please upload an image first");

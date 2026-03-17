@@ -24,8 +24,31 @@ except ImportError:
     OPENCV_AVAILABLE = False
     logging.warning("OpenCV not available, using fallback QR detection")
 
+# Try to import pyzbar for more reliable QR detection (lazy import to avoid DLL issues)
+PYZBAR_AVAILABLE = False
+try:
+    # Don't import immediately - just check if the package exists
+    import importlib.util
+    spec = importlib.util.find_spec("pyzbar")
+    if spec is not None:
+        PYZBAR_AVAILABLE = True
+        logging.info("pyzbar package found - will use lazy import")
+    else:
+        logging.warning("pyzbar package not found")
+except ImportError:
+    PYZBAR_AVAILABLE = False
+    logging.warning("pyzbar not available, falling back to OpenCV")
+
+# Try to import qrcode for additional fallback
+try:
+    import qrcode
+    from qrcode.constants import ERROR_CORRECT_L
+    QRCODE_AVAILABLE = True
+except ImportError:
+    QRCODE_AVAILABLE = False
+
 # Note: pyzbar requires ZBar library which is not available on Windows by default
-# We'll use OpenCV for QR code detection which is more reliable for cross-platform support
+# We'll use pyzbar if available, otherwise OpenCV for QR code detection
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +204,7 @@ class QRScannerService:
             }
     
     def _decode_qr_from_image(self, image_data: str) -> Optional[str]:
-        """Decode QR code from image data using OpenCV with preprocessing"""
+        """Decode QR code from image data using multiple detection methods with detailed logging"""
         try:
             logger.info("📱 Starting QR image decoding process...")
             
@@ -206,32 +229,51 @@ class QRScannerService:
             image_array = np.array(image)
             logger.info(f"📱 Converted to numpy array: {image_array.shape}")
             
-            # Apply image preprocessing for better QR detection
+            # Save a debug version of the image for troubleshooting
+            try:
+                debug_path = "debug_qr_input.png"
+                Image.fromarray(image_array).save(debug_path)
+                logger.info(f"📱 Saved debug image to {debug_path}")
+            except Exception as e:
+                logger.warning(f"Could not save debug image: {e}")
+            
+            # Apply light preprocessing for better QR detection
             processed_image = self._preprocess_image(image_array)
             logger.info("📱 Applied image preprocessing")
             
-            # Use OpenCV for QR code detection
+            # Use OpenCV for QR code detection (since pyzbar has DLL issues on Windows)
             if OPENCV_AVAILABLE:
-                logger.info("📱 Using OpenCV for QR detection...")
+                logger.info("📱 Using OpenCV for QR detection (pyzbar has DLL issues)...")
                 try:
-                    # Try multiple detection methods
                     detector = cv2.QRCodeDetector()
                     
-                    # Method 1: Direct detection on processed image
+                    # Method 1: Try original image first (best for clear QR codes)
                     try:
-                        logger.info("📱 Method 1: Direct detection on processed image")
+                        logger.info("📱 Method 1: Original image (best for clear QR codes)")
+                        data, points, _ = detector.detectAndDecode(image_array)
+                        if data:
+                            logger.info(f"✅ QR decoded from original image: {data[:50]}...")
+                            return data
+                        else:
+                            logger.info("📱 Method 1: No QR code found in original image")
+                    except Exception as e:
+                        logger.warning(f"Method 1 failed: {e}")
+                    
+                    # Method 2: Direct detection on processed image
+                    try:
+                        logger.info("📱 Method 2: Processed image")
                         data, points, _ = detector.detectAndDecode(processed_image)
                         if data:
                             logger.info(f"✅ QR decoded with preprocessing: {data[:50]}...")
                             return data
                         else:
-                            logger.info("📱 Method 1: No QR code found")
+                            logger.info("📱 Method 2: No QR code found")
                     except Exception as e:
-                        logger.warning(f"Method 1 failed: {e}")
+                        logger.warning(f"Method 2 failed: {e}")
                     
-                    # Method 2: Try with adaptive threshold
+                    # Method 3: Try with adaptive threshold
                     try:
-                        logger.info("📱 Method 2: Adaptive threshold")
+                        logger.info("📱 Method 3: Adaptive threshold")
                         adaptive_img = cv2.adaptiveThreshold(
                             processed_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
                             cv2.THRESH_BINARY, 11, 2
@@ -241,25 +283,27 @@ class QRScannerService:
                             logger.info(f"✅ QR decoded with adaptive threshold: {data[:50]}...")
                             return data
                         else:
-                            logger.info("📱 Method 2: No QR code found")
-                    except Exception as e:
-                        logger.warning(f"Method 2 failed: {e}")
-                    
-                    # Method 3: Try with original image as fallback
-                    try:
-                        logger.info("📱 Method 3: Original image")
-                        data, points, _ = detector.detectAndDecode(image_array)
-                        if data:
-                            logger.info(f"✅ QR decoded with original image: {data[:50]}...")
-                            return data
-                        else:
                             logger.info("📱 Method 3: No QR code found")
                     except Exception as e:
                         logger.warning(f"Method 3 failed: {e}")
-
-                    # Method 4: Rescale to multiple sizes (handles curved/real-world QR codes)
+                    
+                    # Method 4: Try with different preprocessing - less aggressive
                     try:
-                        logger.info("📱 Method 4: Multi-scale detection")
+                        logger.info("📱 Method 4: Less aggressive preprocessing")
+                        # Simple threshold without heavy processing
+                        _, simple_thresh = cv2.threshold(image_array, 127, 255, cv2.THRESH_BINARY)
+                        data, points, _ = detector.detectAndDecode(simple_thresh)
+                        if data:
+                            logger.info(f"✅ QR decoded with simple threshold: {data[:50]}...")
+                            return data
+                        else:
+                            logger.info("📱 Method 4: No QR code found")
+                    except Exception as e:
+                        logger.warning(f"Method 4 failed: {e}")
+                    
+                    # Method 5: Rescale to multiple sizes
+                    try:
+                        logger.info("📱 Method 5: Multi-scale detection")
                         for scale in [1.5, 2.0, 0.75, 0.5]:
                             h, w = image_array.shape[:2]
                             resized = cv2.resize(
@@ -271,42 +315,40 @@ class QRScannerService:
                             if data:
                                 logger.info(f"✅ QR decoded at scale {scale}: {data[:50]}...")
                                 return data
-                        logger.info("📱 Method 4: No QR code found at any scale")
-                    except Exception as e:
-                        logger.warning(f"Method 4 failed: {e}")
-
-                    # Method 5: Warp correction for curved surfaces
-                    try:
-                        logger.info("📱 Method 5: Warp correction")
-                        h, w = image_array.shape[:2]
-                        # Sharpen strongly before attempting warp
-                        kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-                        sharpened = cv2.filter2D(image_array, -1, kernel)
-                        # Try detect+decode with WECHAT detector (better for distorted QR)
-                        try:
-                            wechat = cv2.wechat_qrcode_WeChatQRCode()
-                            texts, _ = wechat.detectAndDecode(sharpened)
-                            if texts and texts[0]:
-                                logger.info(f"✅ QR decoded with WeChatQRCode: {texts[0][:50]}...")
-                                return texts[0]
-                        except Exception:
-                            pass
-                        # Fallback: denoise then retry standard detector
-                        denoised = cv2.fastNlMeansDenoising(sharpened, h=10)
-                        data, points, _ = detector.detectAndDecode(denoised)
-                        if data:
-                            logger.info(f"✅ QR decoded after denoising: {data[:50]}...")
-                            return data
-                        logger.info("📱 Method 5: No QR code found")
+                        logger.info("📱 Method 5: No QR code found at any scale")
                     except Exception as e:
                         logger.warning(f"Method 5 failed: {e}")
                         
                 except Exception as e:
-                    logger.warning(f"OpenCV QR decoding failed: {e}")
+                    logger.error(f"OpenCV QR decoding failed: {e}")
             else:
                 logger.warning("OpenCV not available for QR detection")
             
-            logger.error("❌ All QR detection methods failed")
+            # Try pyzbar as fallback if OpenCV fails (unlikely to work due to DLL issues)
+            if PYZBAR_AVAILABLE:
+                logger.info("📱 Trying pyzbar as fallback...")
+                try:
+                    # Lazy import to avoid DLL issues at startup
+                    from pyzbar import pyzbar
+                    decoded_objects = pyzbar.decode(image_array)
+                    if decoded_objects:
+                        data = decoded_objects[0].data.decode('utf-8')
+                        logger.info(f"✅ QR decoded with pyzbar fallback: {data[:50]}...")
+                        return data
+                    else:
+                        logger.info("📱 pyzbar fallback: No QR code found")
+                except Exception as e:
+                    logger.warning(f"pyzbar fallback failed: {e}")
+            else:
+                logger.info("📱 pyzbar not available - skipping fallback")
+            
+            logger.error(f"❌ All QR detection methods failed")
+            logger.error(f"❌ Available libraries: pyzbar={PYZBAR_AVAILABLE}, opencv={OPENCV_AVAILABLE}")
+            logger.error(f"❌ Image shape: {image_array.shape}")
+            logger.error(f"❌ Image dtype: {image_array.dtype}")
+            logger.error(f"❌ Image min/max: {image_array.min()}/{image_array.max()}")
+                
+            # Return a more helpful error message
             return None
             
         except Exception as e:
@@ -316,7 +358,7 @@ class QRScannerService:
             return None
     
     def _preprocess_image(self, image_array: np.ndarray) -> np.ndarray:
-        """Apply preprocessing techniques to improve QR code detection"""
+        """Apply gentle preprocessing techniques to improve QR code detection"""
         try:
             # Convert to grayscale if not already
             if len(image_array.shape) == 3:
@@ -329,42 +371,54 @@ class QRScannerService:
             else:
                 gray = image_array
             
-            # Apply Gaussian blur to reduce noise
-            blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+            # For clear images, use minimal preprocessing
+            # Check if image is already high contrast
+            hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+            hist_variance = np.var(hist)
             
-            # Apply histogram equalization to improve contrast
-            equalized = cv2.equalizeHist(blurred)
-            
-            # Apply bilateral filter for edge preservation
-            bilateral = cv2.bilateralFilter(equalized, 9, 75, 75)
-            
-            # Apply sharpening kernel
-            kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
-            sharpened = cv2.filter2D(bilateral, -1, kernel/9.0)
-            
-            # Apply Otsu's thresholding for better binarization
-            try:
-                ret, thresholded = cv2.threshold(
-                    sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
-                )
-            except Exception as e:
-                logger.warning(f"Threshold processing failed: {e}")
-                # Fallback to simple threshold
-                _, thresholded = cv2.threshold(sharpened, 127, 255, cv2.THRESH_BINARY)
-            
-            # Apply morphological operations to clean up
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-            cleaned = cv2.morphologyEx(thresholded, cv2.MORPH_CLOSE, kernel)
+            if hist_variance > 10000:  # High contrast image - minimal processing
+                logger.info("📱 High contrast image detected - using minimal preprocessing")
+                # Only apply light noise reduction
+                processed = cv2.medianBlur(gray, 3)
+            else:  # Lower contrast - apply standard preprocessing
+                logger.info("📱 Lower contrast image - applying standard preprocessing")
+                
+                # Apply light Gaussian blur to reduce noise
+                blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+                
+                # Apply histogram equalization to improve contrast
+                equalized = cv2.equalizeHist(blurred)
+                
+                # Apply light bilateral filter for edge preservation
+                bilateral = cv2.bilateralFilter(equalized, 5, 50, 50)
+                
+                # Apply gentle sharpening
+                kernel = np.array([[0,-1,0], [-1,5,-1], [0,-1,0]])
+                sharpened = cv2.filter2D(bilateral, -1, kernel)
+                
+                # Apply Otsu's thresholding for better binarization
+                try:
+                    ret, thresholded = cv2.threshold(
+                        sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+                    )
+                except Exception as e:
+                    logger.warning(f"Threshold processing failed: {e}")
+                    # Fallback to simple threshold
+                    _, thresholded = cv2.threshold(sharpened, 127, 255, cv2.THRESH_BINARY)
+                
+                # Apply light morphological operations to clean up
+                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+                processed = cv2.morphologyEx(thresholded, cv2.MORPH_CLOSE, kernel)
             
             # Resize to standard size for better detection
-            height, width = cleaned.shape
+            height, width = processed.shape
             if max(height, width) > 2000:
                 scale = 2000 / max(height, width)
                 new_width = int(width * scale)
                 new_height = int(height * scale)
-                cleaned = cv2.resize(cleaned, (new_width, new_height), interpolation=cv2.INTER_AREA)
+                processed = cv2.resize(processed, (new_width, new_height), interpolation=cv2.INTER_AREA)
             
-            return cleaned
+            return processed
             
         except Exception as e:
             logger.warning(f"Image preprocessing failed: {e}")
@@ -1014,7 +1068,7 @@ class QRScannerService:
         return price_text.strip()
     
     def validate_image(self, image_file):
-        """Validate uploaded image for QR scanning."""
+        """Validate uploaded image for QR scanning - more permissive for clear images."""
         try:
             # Check file extension
             filename = image_file.filename.lower()
@@ -1025,21 +1079,35 @@ class QRScannerService:
             if extension not in self._supported_formats:
                 return False, f"Unsupported format. Supported: {', '.join(self._supported_formats)}"
             
-            # Check file size (max 10MB)
+            # Check file size (max 15MB - increased for clear high-quality images)
             image_file.seek(0, 2)  # Seek to end
             file_size = image_file.tell()
             image_file.seek(0)  # Reset position
             
-            if file_size > 10 * 1024 * 1024:  # 10MB
-                return False, "File too large. Maximum size: 10MB"
+            if file_size > 15 * 1024 * 1024:  # 15MB (increased from 10MB)
+                return False, "File too large. Maximum size: 15MB"
             
-            # Try to open the image
+            # Try to open the image - be more permissive
             try:
-                Image.open(image_file)
+                image = Image.open(image_file)
                 image_file.seek(0)  # Reset position
+                
+                # Check if image is reasonable size for QR scanning
+                width, height = image.size
+                if width < 50 or height < 50:
+                    return False, "Image too small for QR code detection (minimum 50x50 pixels)"
+                
+                if width > 4000 or height > 4000:
+                    return False, "Image too large for QR code detection (maximum 4000x4000 pixels)"
+                
+                # Check if image has enough pixels to potentially contain a QR code
+                if width * height < 100 * 100:  # Minimum area for QR code
+                    return False, "Image resolution too low for QR code detection"
+                
                 return True, "Valid image"
-            except Exception:
-                return False, "Invalid image file"
+            except Exception as e:
+                logger.warning(f"Image validation failed: {e}")
+                return False, f"Invalid image file: {str(e)}"
                 
         except Exception as e:
             logger.error(f"Image validation failed: {e}")

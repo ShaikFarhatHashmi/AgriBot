@@ -32,6 +32,21 @@ def create_app():
     from app.models.chat_history import init_db
     init_db()
 
+    # ── Smart ChromaDB Initialization ──────────────────────────
+    # Check if ChromaDB exists and initialize if needed
+    from app.services.qa_service import QAService
+    qa_service = QAService(AppConfig)
+    
+    # Only pre-initialize if ChromaDB doesn't exist
+    import os
+    if not os.path.exists(AppConfig.CHROMA_DIR) or not os.path.exists(os.path.join(AppConfig.CHROMA_DIR, "chroma.sqlite3")):
+        print("[AgriBot] ChromaDB not found - building in background...")
+        print("[AgriBot] This will take 2-5 minutes on first run.")
+        qa_service.pre_initialize()
+        print("[AgriBot] ChromaDB built successfully!")
+    else:
+        print("[AgriBot] ChromaDB found - ready for instant use!")
+
     # ── QA Service Note ───────────────────────────────────────
     # QA Service will initialize on first use (takes 2-5 minutes)
     # This prevents app startup from hanging

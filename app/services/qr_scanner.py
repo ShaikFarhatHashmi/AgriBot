@@ -39,6 +39,9 @@ class QRScannerService:
             'vcard', 'location', 'product', 'certificate'
         ]
         
+        # Supported image formats for QR scanning
+        self._supported_formats = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
+        
         # Agricultural product patterns
         self.product_patterns = {
             'fertilizer': r'(fertilizer|urea|dap|npk|compost|manure)',
@@ -317,7 +320,12 @@ class QRScannerService:
         try:
             # Convert to grayscale if not already
             if len(image_array.shape) == 3:
-                gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+                if image_array.shape[2] == 3:
+                    gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+                elif image_array.shape[2] == 4:
+                    gray = cv2.cvtColor(image_array, cv2.COLOR_RGBA2GRAY)
+                else:
+                    gray = image_array[:, :, 0]  # Take first channel
             else:
                 gray = image_array
             

@@ -272,27 +272,55 @@ class QRController:
 
     @staticmethod
     def _generate_qr_response(scan_result, lang="en"):
-        """Generate chat response about QR code content."""
+        """Generate chat response about QR code content - using translation system like plant disease detector."""
         try:
-            qa_service = _get_qa_service()
+            qr_data = scan_result.get("raw_data", scan_result.get("qr_data", ""))
+            product_info = scan_result.get("extracted_info", {})
+            is_agricultural = scan_result.get("is_agricultural", False)
             
-            # Build query based on QR content
-            qr_data = scan_result["qr_data"]
-            product_info = scan_result["product_info"]
+            # For non-agricultural QR codes, provide farming advice and cultivation guidance
+            if not is_agricultural:
+                if lang == "en":
+                    if product_info.get("url") or scan_result.get("type") == "url":
+                        english_response = f"I found a QR code containing a URL: {qr_data}. Since this is not agricultural content, let me provide you with some useful farming advice: Focus on sustainable farming practices, crop rotation, soil health management, and proper irrigation techniques. For best results, consider using organic fertilizers and integrated pest management to improve your agricultural yield."
+                    elif "product" in qr_data.lower() or "id" in qr_data.lower():
+                        english_response = f"I found a QR code with product ID: {qr_data}. This appears to be a non-agricultural product. For your farming needs, I recommend focusing on proper seed selection, soil testing, and maintaining optimal pH levels. Consider implementing drip irrigation for water efficiency and using mulching to retain soil moisture. Regular crop monitoring and timely pest control are essential for successful cultivation."
+                    elif "@" in qr_data or "contact" in qr_data.lower():
+                        english_response = f"I found a QR code with contact information: {qr_data}. While this contact information may not be agricultural, here's some valuable farming guidance: Always plan your cropping schedule based on seasonal patterns, maintain proper farm equipment, and keep detailed records of your agricultural activities. Consider crop diversification to reduce risk and implement sustainable farming practices for long-term soil health."
+                    else:
+                        english_response = f"I found a QR code containing: {qr_data}. Since this is general content, let me share some important farming advice: Successful agriculture requires proper planning, quality seeds, balanced fertilization, and regular monitoring. Focus on soil health through organic matter addition, practice water conservation, and stay updated with modern farming techniques. Consider joining local farmer cooperatives for better market access and knowledge sharing."
+                    
+                    # Return English response directly
+                    return english_response
+                else:
+                    # For non-English, translate the English response using translation system
+                    if product_info.get("url") or scan_result.get("type") == "url":
+                        english_response = f"I found a QR code containing a URL: {qr_data}. Since this is not agricultural content, let me provide you with some useful farming advice: Focus on sustainable farming practices, crop rotation, soil health management, and proper irrigation techniques. For best results, consider using organic fertilizers and integrated pest management to improve your agricultural yield."
+                    elif "product" in qr_data.lower() or "id" in qr_data.lower():
+                        english_response = f"I found a QR code with product ID: {qr_data}. This appears to be a non-agricultural product. For your farming needs, I recommend focusing on proper seed selection, soil testing, and maintaining optimal pH levels. Consider implementing drip irrigation for water efficiency and using mulching to retain soil moisture. Regular crop monitoring and timely pest control are essential for successful cultivation."
+                    elif "@" in qr_data or "contact" in qr_data.lower():
+                        english_response = f"I found a QR code with contact information: {qr_data}. While this contact information may not be agricultural, here's some valuable farming guidance: Always plan your cropping schedule based on seasonal patterns, maintain proper farm equipment, and keep detailed records of your agricultural activities. Consider crop diversification to reduce risk and implement sustainable farming practices for long-term soil health."
+                    else:
+                        english_response = f"I found a QR code containing: {qr_data}. Since this is general content, let me share some important farming advice: Successful agriculture requires proper planning, quality seeds, balanced fertilization, and regular monitoring. Focus on soil health through organic matter addition, practice water conservation, and stay updated with modern farming techniques. Consider joining local farmer cooperatives for better market access and knowledge sharing."
+                    
+                    # Translate to user's language using translation system
+                    return translate_from_english(english_response, lang)
             
-            if product_info and product_info.get("type") == "url":
-                query = f"I scanned a QR code that contains this URL: {qr_data}. Can you tell me about this product or website?"
-            elif product_info and product_info.get("type") == "product_id":
-                query = f"I scanned a QR code with product ID: {qr_data}. What information can you provide about this product?"
-            elif product_info and product_info.get("type") == "structured":
-                query = f"I scanned a QR code with this information: {qr_data}. Can you explain what this product is and provide details?"
+            # For agricultural QR codes, provide detailed product and farming information
+            if product_info.get("url") or scan_result.get("type") == "url":
+                query = f"I scanned a QR code that contains this URL: {qr_data}. This appears to be an agricultural product or service. Please provide detailed information about this product including its usage, application methods, dosage instructions, benefits for crops, safety precautions, and how it compares to similar agricultural products in the market."
+            elif "product" in qr_data.lower() or "id" in qr_data.lower():
+                query = f"I scanned a QR code with product ID: {qr_data}. This is an agricultural product identifier. Please provide comprehensive details about this product including its composition, target crops, application timing, effectiveness, environmental impact, storage requirements, and best practices for optimal results in farming."
+            elif "fertilizer" in qr_data.lower() or "pesticide" in qr_data.lower() or "seed" in qr_data.lower():
+                query = f"I scanned a QR code with this agricultural information: {qr_data}. Please analyze this agricultural data and provide detailed insights about the product, its applications in farming, recommended usage patterns, potential benefits for crop yield and quality, and any specific considerations for different types of crops or farming conditions."
             else:
-                query = f"I scanned a QR code containing: {qr_data}. Can you help me understand what this is about?"
+                query = f"I scanned a QR code containing agricultural content: {qr_data}. Please provide detailed agricultural information about this content, including its relevance to farming, practical applications, benefits for agricultural productivity, and guidance on how farmers can effectively use this information in their farming operations."
             
-            # Get AI response
+            # Get AI response only for agricultural content
+            qa_service = _get_qa_service()
             ai_response = qa_service.ask(query)
             
-            # Translate if needed
+            # Translate if needed using translation system (like plant disease detector)
             if lang != "en":
                 final_response = translate_from_english(ai_response, lang)
             else:
@@ -305,12 +333,12 @@ class QRController:
             
             # Fallback response
             if lang == "en":
-                return f"I found a QR code with data: {scan_result['qr_data']}. This appears to be {scan_result['product_info'].get('type', 'general content')}. For more detailed information, you may need to check the product directly or contact the manufacturer."
+                qr_data = scan_result.get("raw_data", scan_result.get("qr_data", "Unknown"))
+                product_info = scan_result.get("extracted_info", scan_result.get("product_info", {}))
+                return f"I found a QR code with data: {qr_data}. This appears to be {product_info.get('type', 'general content')}. For more detailed information, you may need to check the product directly or contact the manufacturer."
             else:
-                return translate_from_english(
-                    f"I found a QR code with data: {scan_result['qr_data']}. This appears to be {scan_result['product_info'].get('type', 'general content')}. For more detailed information, you may need to check the product directly or contact the manufacturer.",
-                    lang
-                )
+                qr_data = scan_result.get("raw_data", scan_result.get("qr_data", "Unknown"))
+                return f"QR code scanné avec succès. Données: {qr_data[:50]}..."
 
     @staticmethod
     def handle_health():

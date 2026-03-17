@@ -562,7 +562,7 @@ $(function () {
 
                     var iconClass   = isDetection ? "history-item-icon detect-icon" : "history-item-icon";
 
-                    var timeStr     = conv.updated_at ? conv.updated_at.substring(11, 16) : "";
+                    var timeStr     = conv.updated_at ? formatTime(conv.updated_at) : "";
 
 
 
@@ -844,26 +844,30 @@ $(function () {
 
     // ── Date grouping ──────────────────────────────────────────
 
-    function getDateGroup(isoString) {
+    function formatTime(isoString) {
+        if (!isoString) return "";
+        var d = new Date(isoString);
+        return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+    }
 
+    function getDateGroup(isoString) {
         if (!isoString) return "Older";
 
-        var d    = new Date(isoString);
+        // Parse ISO string and handle timezone properly
+        var d = new Date(isoString);
+        var now = new Date();
 
-        var now  = new Date();
+        // Get date parts (ignore time for comparison)
+        var dDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        var nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        var diff = Math.floor((now - d) / 86400000);
+        var diff = Math.floor((nowDate - dDate) / 86400000);
 
         if (diff === 0) return "Today";
-
         if (diff === 1) return "Yesterday";
-
         if (diff < 7)   return "This Week";
-
         if (diff < 30)  return "This Month";
-
         return "Older";
-
     }
 
 

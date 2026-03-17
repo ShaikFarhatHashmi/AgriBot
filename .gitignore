@@ -22,3 +22,4 @@ chroma_db/
 # OS files
 .DS_Store
 Thumbs.dbchroma_db_temp/
+chroma_db_temp/chroma.sqlite3

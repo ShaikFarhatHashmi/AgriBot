@@ -198,23 +198,100 @@ $(function () {
     }
     function removeTypingIndicator() { $("#typing-row").remove(); }
 
-    // ── Voice output ───────────────────────────────────────────
+    // ── Voice output ────────────────────────────────────────
     function speakResponse(text) {
         if (!("speechSynthesis" in window)) return;
         synth.cancel();
-        const clean = text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
-                          .replace(/[-•]\s/g, "").replace(/\d+\.\s/g, "").replace(/\n+/g, " ");
-        msg.text = clean; msg.rate = 0.9; msg.pitch = 1; msg.volume = 1;
-        const v = synth.getVoices().find(function (x) {
-            return x.name.includes("Female") || x.name.includes("Samantha") ||
-                   x.name.includes("Karen")  || x.lang.includes("en-IN") || x.lang.includes("en-GB");
-        });
-        if (v) msg.voice = v;
+
+        // Clean markdown before speaking
+        var clean = text
+            .replace(/\*\*(.*?)\*\*/g, "$1")
+            .replace(/\*(.*?)\*/g, "$1")
+            .replace(/[-•]\s/g, "")
+            .replace(/\d+\.\s/g, "")
+            .replace(/\n+/g, " ");
+
+        msg.text   = clean;
+        msg.rate   = 0.9;
+        msg.pitch  = 1;
+        msg.volume = 1;
+
+        // Map language selector value to BCP-47 tags for speech synthesis
+        var langVoiceMap = {
+            "en": ["en-IN", "en-GB", "en-US"],
+            "hi": ["hi-IN"],
+            "te": ["te-IN"],
+            "ta": ["ta-IN"],
+            "kn": ["kn-IN"],
+            "ml": ["ml-IN"],
+            "mr": ["mr-IN"],
+            "bn": ["bn-IN"],
+            "gu": ["gu-IN"],
+            "pa": ["pa-IN"]
+        };
+
+        var selectedLang   = $("#langSelect").val() || "en";
+        var preferredTags  = langVoiceMap[selectedLang] || ["en-IN"];
+        var voices         = synth.getVoices();
+        var chosenVoice    = null;
+
+        // Step 1: exact BCP-47 tag match (e.g. "te-IN")
+        for (var t = 0; t < preferredTags.length; t++) {
+            var match = voices.find(function (v) {
+                return v.lang === preferredTags[t];
+            });
+            if (match) { chosenVoice = match; break; }
+        }
+
+        // Step 2: prefix match (e.g. lang "te" matches voice "te-IN")
+        if (!chosenVoice) {
+            var prefix = selectedLang.toLowerCase();
+            chosenVoice = voices.find(function (v) {
+                return v.lang.toLowerCase().startsWith(prefix);
+            });
+        }
+
+        // Step 3: English fallback — try preferred named voices
+        if (!chosenVoice && selectedLang === "en") {
+            chosenVoice = voices.find(function (v) {
+                return v.name.includes("Samantha") ||
+                       v.name.includes("Karen")    ||
+                       v.lang.includes("en-IN")    ||
+                       v.lang.includes("en-GB");
+            });
+        }
+
+        // Step 4: absolute fallback — let browser choose
+        if (chosenVoice) {
+            msg.voice = chosenVoice;
+        } else {
+            msg.voice = null;
+            if (selectedLang !== "en") {
+                console.warn(
+                    "[AgriBot] No voice found for lang='" + selectedLang + "'. " +
+                    "Available: " + voices.map(function(v){ return v.lang; }).join(", ")
+                );
+                // Show a friendly message so user knows voice is unavailable
+                var langName = $("#langSelect option:selected").text();
+                appendBotMessage(
+                    "Voice output for " + langName + " is not available on this device. " +
+                    "To enable it: Windows Settings → Time & Language → Language & Region → " +
+                    "Add '" + langName + "' → Download Text-to-speech pack."
+                );
+                return;
+            }
+        }
+
         synth.speak(msg);
     }
+
+    // Reload available voices when browser finishes loading them
     if (synth.onvoiceschanged !== undefined) {
-        synth.onvoiceschanged = function () { console.log("Voices:", synth.getVoices().length); };
+        synth.onvoiceschanged = function () {
+            console.log("[AgriBot] Voices loaded:", synth.getVoices().length);
+        };
     }
+
 
     // ── Voice input ────────────────────────────────────────────
     function handleVoiceInput(e) {

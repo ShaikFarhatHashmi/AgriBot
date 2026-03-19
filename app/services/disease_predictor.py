@@ -50,24 +50,58 @@ def preprocess_image(image_file):
     return img_array
 
 
-# ── Prediction ────────────────────────────────────────────────
+# # ── Prediction ────────────────────────────────────────────────
+# def predict_disease(image_file):
+#     img_array    = preprocess_image(image_file)
+#     predictions  = model.predict(img_array)            # shape: (1, 65)
+#     class_index  = str(np.argmax(predictions))         # e.g. "55"
+#     confidence   = float(np.max(predictions)) * 100    # e.g. 94.26
+
+#     disease_name = class_mapping[class_index]
+#     # e.g. "Tomato___Late_blight"
+
+#     display_name = disease_name.replace("___", " — ").replace("_", " ")
+#     # e.g. "Tomato — Late blight"
+
+#     return {
+#         "disease":      disease_name,          # → used for RAG query
+#         "display_name": display_name,          # → shown in UI
+#         "confidence":   round(confidence, 2),  # → e.g. 94.26
+#         "class_index":  class_index,           # → e.g. "55"
+#         "reliable":     confidence >= AppConfig.CNN_CONFIDENCE_MIN
+#     }
+
 def predict_disease(image_file):
-    img_array    = preprocess_image(image_file)
-    predictions  = model.predict(img_array)            # shape: (1, 65)
-    class_index  = str(np.argmax(predictions))         # e.g. "55"
-    confidence   = float(np.max(predictions)) * 100    # e.g. 94.26
+    img_array   = preprocess_image(image_file)
+    predictions = model.predict(img_array)[0]  # shape: (65,)
 
+    # ── DIAGNOSTIC — paste console output here, then remove ───
+    print("\n" + "="*60)
+    print("DIAGNOSTIC REPORT")
+    print("="*60)
+    print(f"Model arch          : {type(model.layers[1]).__name__}")
+    print(f"Total layers        : {len(model.layers)}")
+    print(f"Pixel range         : [{img_array.min():.3f}, {img_array.max():.3f}]")
+    print(f"Preprocessing OK    : {img_array.min() < -0.5}")
+    print(f"Predictions sum     : {predictions.sum():.6f}")
+    print(f"Max confidence      : {predictions.max()*100:.2f}%")
+    print(f"Top 5 predictions:")
+    top5 = predictions.argsort()[::-1][:5]
+    for i, idx in enumerate(top5):
+        print(f"  {i+1}. [{idx:>2}] {class_mapping[str(idx)]:<45} {predictions[idx]*100:.2f}%")
+    print("="*60 + "\n")
+    # ── END DIAGNOSTIC ─────────────────────────────────────────
+
+    class_index  = str(np.argmax(predictions))
+    confidence   = float(np.max(predictions)) * 100
     disease_name = class_mapping[class_index]
-    # e.g. "Tomato___Late_blight"
-
     display_name = disease_name.replace("___", " — ").replace("_", " ")
-    # e.g. "Tomato — Late blight"
 
     return {
-        "disease":      disease_name,          # → used for RAG query
-        "display_name": display_name,          # → shown in UI
-        "confidence":   round(confidence, 2),  # → e.g. 94.26
-        "class_index":  class_index,           # → e.g. "55"
+        "disease":      disease_name,
+        "display_name": display_name,
+        "confidence":   round(confidence, 2),
+        "class_index":  class_index,
         "reliable":     confidence >= AppConfig.CNN_CONFIDENCE_MIN
     }
 

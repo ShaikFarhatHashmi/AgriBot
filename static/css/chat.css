@@ -692,3 +692,280 @@ body.chat-page {
     .app-wrapper { padding: 0; gap: 0; }
     body.chat-page { padding: 0; }
 }
+/* ── DISEASE CAMERA OVERLAY (no scan line — just frame corners) ── */
+.disease-cam-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.25);
+}
+.disease-cam-frame {
+    width: 220px; height: 220px; position: relative;
+}
+/* ═══════════════════════════════════════════════════════════════
+   QR SCANNER + DISEASE DETECTION CAMERA — NEW FEATURE STYLES
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Mode switch (Upload / Camera toggle) ───────────────────── */
+.qr-mode-switch {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.qr-mode-btn {
+    flex: 1;
+    padding: 10px 12px;
+    background: #f0f7f3;
+    border: 1.5px solid #c6e0d0;
+    border-radius: 10px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    transition: all 0.2s;
+}
+.qr-mode-btn.active {
+    background: linear-gradient(135deg, var(--green-mid), var(--green-bright));
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 3px 10px rgba(45,106,79,0.25);
+}
+.qr-mode-btn:not(.active):hover {
+    border-color: var(--green-bright);
+    color: var(--green-mid);
+    background: #e8f5ee;
+}
+.qr-mode-btn i { font-size: 13px; }
+
+/* ── Camera view wrapper ────────────────────────────────────── */
+.qr-camera-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: #111;
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+#qrVideo,
+#diseaseVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 14px;
+    display: block;
+}
+
+/* ── Camera placeholder (before camera starts) ──────────────── */
+.qr-camera-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #666;
+    background: #1a1a1a;
+    border-radius: 14px;
+}
+.qr-camera-placeholder i {
+    font-size: 38px;
+    color: #444;
+}
+.qr-camera-placeholder p {
+    font-size: 13px;
+    color: #666;
+}
+
+/* ── QR scan overlay (animated scan line + corner brackets) ─── */
+.qr-scan-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.35);
+    border-radius: 14px;
+}
+
+.qr-scan-frame {
+    width: 180px;
+    height: 180px;
+    position: relative;
+}
+
+/* Corner brackets */
+.qr-corner {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    border-color: #6ee7a0;
+    border-style: solid;
+}
+.qr-corner.tl {
+    top: 0; left: 0;
+    border-width: 3px 0 0 3px;
+    border-radius: 4px 0 0 0;
+}
+.qr-corner.tr {
+    top: 0; right: 0;
+    border-width: 3px 3px 0 0;
+    border-radius: 0 4px 0 0;
+}
+.qr-corner.bl {
+    bottom: 0; left: 0;
+    border-width: 0 0 3px 3px;
+    border-radius: 0 0 0 4px;
+}
+.qr-corner.br {
+    bottom: 0; right: 0;
+    border-width: 0 3px 3px 0;
+    border-radius: 0 0 4px 0;
+}
+
+/* Animated scan line (QR only) */
+.qr-scan-line {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    background: #6ee7a0;
+    top: 0;
+    animation: qr-scan-move 2s linear infinite;
+    box-shadow: 0 0 8px #6ee7a0, 0 0 2px #6ee7a0;
+}
+@keyframes qr-scan-move {
+    0%   { top: 4px; }
+    50%  { top: 172px; }
+    100% { top: 4px; }
+}
+
+.qr-scan-hint {
+    color: white;
+    font-size: 12.5px;
+    margin-top: 16px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    text-align: center;
+}
+
+/* ── Disease detection camera overlay (frame only, no scan line) */
+.disease-cam-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.28);
+    border-radius: 14px;
+}
+.disease-cam-frame {
+    width: 220px;
+    height: 220px;
+    position: relative;
+}
+/* Reuse .qr-corner for disease frame corners */
+
+/* ── Camera action buttons ───────────────────────────────────── */
+.qr-camera-btns {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.qr-camera-btns .analyse-btn {
+    flex: 1;
+}
+
+/* Stop camera button — red variant */
+.qr-stop-btn {
+    background: linear-gradient(135deg, #b91c1c, #ef4444) !important;
+    box-shadow: 0 4px 14px rgba(185,28,28,0.3) !important;
+}
+.qr-stop-btn:hover:not(:disabled) {
+    box-shadow: 0 6px 20px rgba(185,28,28,0.4) !important;
+}
+
+/* Capture button — amber/gold variant */
+#diseaseCaptureBtn {
+    background: linear-gradient(135deg, #b45309, #f59e0b) !important;
+    box-shadow: 0 4px 14px rgba(180,83,9,0.3) !important;
+}
+#diseaseCaptureBtn:hover:not(:disabled) {
+    box-shadow: 0 6px 20px rgba(180,83,9,0.4) !important;
+}
+
+/* ── Camera status text ──────────────────────────────────────── */
+.qr-camera-status {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    text-align: center;
+    min-height: 18px;
+    margin-top: 4px;
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+
+/* ── Disease camera capture preview ─────────────────────────── */
+#diseaseCapturePreview {
+    text-align: center;
+    margin-bottom: 12px;
+}
+#diseaseCapturedImg {
+    max-height: 200px;
+    max-width: 100%;
+    border-radius: 12px;
+    object-fit: contain;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.15);
+    display: block;
+    margin: 0 auto 10px;
+}
+#diseaseAnalyseCapturedBtn {
+    margin-top: 0;
+}
+
+/* Retake button positioned on captured image */
+#diseaseCapturePreview .upload-preview {
+    display: inline-block;
+    position: relative;
+    margin-bottom: 10px;
+}
+#diseaseCapturePreview .remove-btn {
+    background: #f59e0b;
+    /* amber for retake — distinguishes from red delete */
+}
+#diseaseCapturePreview .remove-btn:hover {
+    background: #d97706;
+}
+
+/* ── QR decoded text display ─────────────────────────────────── */
+.qr-raw-text {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    background: #f0f7f3;
+    border: 1px solid #d4edda;
+    border-radius: 8px;
+    padding: 8px 12px;
+    word-break: break-all;
+    font-family: monospace;
+    line-height: 1.5;
+    margin-bottom: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — stack sidebar below content on small screens
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 820px) {
+    .qr-camera-wrap { aspect-ratio: 3 / 4; }
+    .qr-scan-frame  { width: 150px; height: 150px; }
+    .disease-cam-frame { width: 180px; height: 180px; }
+}
